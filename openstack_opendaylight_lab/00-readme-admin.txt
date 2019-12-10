@@ -86,7 +86,7 @@ service nova-scheduler status
 service neutron-server status
 service apache2 status
 
-+ Network:
+  + Network:
 
 service neutron-dhcp-agent status
 service neutron-metadata-agent status
