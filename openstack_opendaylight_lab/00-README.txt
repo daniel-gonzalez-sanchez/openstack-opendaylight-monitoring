@@ -7,6 +7,7 @@ A) Descargar y descomprimir el archivo del escenario completo con los root files
 
 B) Construir los root filesystems manualmente haciendo uso de los scripts del directorio "filesystems". Para ello, seguir los pasos indicados en "00-readme-admin.txt".
 
+
 2 - Despliegue de escenario VNX openstack_opendaylight_lab
 
 # Start the scenario
@@ -27,13 +28,29 @@ vnx -f openstack_opendaylight_lab.xml -v -x create-demo-vm4
 # Destroy the scenario
 vnx -f openstack_opendaylight_lab.xml -v --destroy
 
+# OpenStack Dashboard URL
+http://10.0.10.11/horizon/auth/login/
+
 # OpenStack Dashboard credentials
-User: admin
+Domain: default
+User Name: admin
 Password: xxxx
 
 # OpenStack nodes ("controller", "network", "compute1", "compute2" y "opendaylight") credentials
 User: root
 Password: xxxx
+
+# OpenDayLight GUI DLUX URL
+http://10.0.0.12:8181/index.html
+
+# OpenDayLight credentials
+User: admin
+Password: admin
+
+# Demo scenario ("create-demo-scenario", "create-demo-vm3" and "create-demo-vm4") VMs credentials
+User: root
+Password: xxxx
+
 
 3 - Recetas para la integración de OpenStack con OpenDayLight
 
