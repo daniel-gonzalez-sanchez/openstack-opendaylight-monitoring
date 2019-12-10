@@ -228,9 +228,6 @@ sudo ovs-vsctl set Open_vSwitch . other_config:local_ip=10.0.1.21
 sudo ovs-vsctl set Open_vSwitch . other_config:provider_mappings=provider:eth4
 ovs-vsctl set-manager ptcp:6640:127.0.0.1 tcp:10.0.0.12:6640
 
-ovs-vsctl set-manager ptcp:6640:127.0.0.1 tcp:10.0.0.12:6640
-
-
 sleep 1
 ovs-vsctl show
 
@@ -243,8 +240,7 @@ interface_driver = openvswitch
 force_metadata = true
 
 [ovs]
-ovsdb_connection = tcp:10.0.0.21:6640
-#ovsdb_connection = tcp:127.0.0.1:6640
+ovsdb_connection = tcp:127.0.0.1:6640
 
 ###############################################################################
 
@@ -415,9 +411,6 @@ $ ip netns exec qdhcp-xxxx ifconfig -a
 $ ip netns exec qdhcp-xxxx ping a.b.c.d
 
 $ ip netns exec qdhcp-xxxx tcpdump -nei tapxxxx
-
-# tcpdump
-tcpdump -i eth2 -e
 
 # Check all options for Open_vSwitch
 ovs-vsctl list Open_vSwitch
