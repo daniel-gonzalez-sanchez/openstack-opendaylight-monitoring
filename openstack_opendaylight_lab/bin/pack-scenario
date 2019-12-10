@@ -1,0 +1,16 @@
+#!/bin/bash
+
+SCENARIO=openstack_opendaylight_lab.xml
+VERS='01'
+
+# Move to the upper directory where this script is
+cdir=$( dirname $0 )
+cd $cdir/..
+
+vnx --pack $SCENARIO \
+    --pack-version $VERS \
+    --pack-add-files \
+        00-notes-OpenStack+ODL.txt 00-readme-admin.txt \
+        bin \
+    $1 $2 $3
+
