@@ -14,7 +14,7 @@ cd filesystems
                           or
  
  cd filesystems
- ./create.sh
+ ./create_rootfs.sh
 
 - Set the scenario to use the original filesystem:
 
