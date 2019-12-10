@@ -3,7 +3,7 @@
 
 Para la instalación y despliegue del escenario VNX es necesario construir previamente los root filesystems de los contenedores de virtualización LXC para los nodos de la infraestructura de integración OpenStack con OpenDayLight ("controller", "network", "computes" y "opendaylight"). Hay dos formas de hacerlo:
 
-A) Descargar el escenario completo con los root filesystems necesarios ya generados a partir el siguiente enlace de Google Drive: https://drive.google.com/file/d/1X3sxQEzyRAEvv45A_Aejx3Z8yp2IRy8a/view?usp=sharing
+A) Descargar y descomprimir el archivo del escenario completo con los root filesystems necesarios ya generados accesible a partir del siguiente enlace de Google Drive: https://drive.google.com/file/d/1nt4Gjt3LbywxAaMsKgNzodzCmcUr0grk/view?usp=sharing
 
 B) Construir los root filesystems manualmente haciendo uso de los scripts del directorio "filesystems". Para ello, seguir los pasos indicados en "00-readme-admin.txt".
 
@@ -26,6 +26,14 @@ vnx -f openstack_opendaylight_lab.xml -v -x create-demo-vm4
 
 # Destroy the scenario
 vnx -f openstack_opendaylight_lab.xml -v --destroy
+
+# OpenStack Dashboard credentials
+User: admin
+Password: xxxx
+
+# OpenStack nodes ("controller", "network", "compute1", "compute2" y "opendaylight") credentials
+User: root
+Password: xxxx
 
 3 - Recetas para la integración de OpenStack con OpenDayLight
 
