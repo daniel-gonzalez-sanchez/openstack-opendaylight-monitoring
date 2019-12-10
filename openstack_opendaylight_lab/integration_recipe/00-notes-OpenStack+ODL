@@ -1,0 +1,520 @@
+
+# Start the scenario
+vnx -f openstack_opendaylight_lab.xml -t or vnx -f openstack_lab-odl.xml -v --create
+
+# Wait for all consoles to have started and configure all Openstack services
+# Load vm images in GLANCE
+vnx -f openstack_opendaylight_lab.xml -v -x start-all,load-img 
+
+# Destroy the scenario
+vnx -f openstack_opendaylight_lab.xml -v --destroy
+
+-> OPENDAYLIGHT NODE: 
+
+slogin root@opendaylight 
+wget version_ODL_URL
+tar -zxvf version_ODL.tar.gz
+cd version_ODL_dir/
+
+# Start karaf in background:
+./bin/start
+
+# Start karaf in foreground:
+./bin/karaf
+
+# Start karaf client:
+/bin/client
+
+*** Add ODL plugins at the end of "featuresBoot" parameter in etc/org.apache.karaf.features.cfg file and after that start karaf shell to install them (./bin/karaf):
+,odl-netvirt-api,odl-netvirt-openstack,odl-mdsal-apidocs,odl-restconf-all,odl-dlux-core,odl-dluxapps-nodes,odl-dluxapps-topology,odl-dluxapps-yangui,odl-openflowplugin-flow-services,odl-openflowplugin-flow-services-rest,odl-neutron-hostconfig-ovs,odl-tsdr-core,odl-tsdr-hsqldb-all,odl-tsdr-restconf-collector,odl-tsdr-syslog-collector,odl-tsdr-netflow-statistics-collector,odl-tsdr-elasticsearch
+
+# Install ODL plugins in karaf client:
+./bin/client -> "feature:install odl-netvirt-api odl-netvirt-openstack odl-mdsal-apidocs odl-restconf-all odl-dlux-core ..."
+./bin/client -> "feature:list -i"
+
+*** ODL GUI: http://10.0.0.12:8181/index.html
+
+
+-> CONTROLLER NODE:
+
+slogin root@controller
+
+service neutron-server stop 
+
+pip install networking-odl (*** instalar con pip y pip2)
+
+- Configure /etc/neutron/neutron.conf file:
+
+###############################################################################
+
+[DEFAULT]
+
+core_plugin = neutron.plugins.ml2.plugin.Ml2Plugin
+#core_plugin = ml2
+
+...
+
+service_plugins = odl-router_v2
+
+...
+
+###############################################################################
+
+
+- Configure /etc/neutron/plugins/ml2/ml2_conf.ini file:
+
+###############################################################################
+
+[ml2]
+
+type_drivers = local,flat,vlan,vxlan
+
+tenant_network_types = vxlan,,flat,vlan
+
+mechanism_drivers = opendaylight_v2
+
+extension_drivers = port_security,qos
+
+
+[securitygroup]
+
+enable_security_group = true
+
+# Driver for security groups firewall in the L2 agent (string value)
+firewall_driver = neutron.agent.not.a.real.FirewallDriver
+
+[ml2_odl]
+
+enable_dhcp_service = true
+port_binding_controller = pseudo-agentdb-binding
+#port_binding_controller = network-topology
+password = admin
+username = admin
+url = http://10.0.0.12:8181/controller/nb/v2/neutron
+
+(*** puerto 8080 o 8181 dependiendo de la versión del controlador ODL)
+
+###############################################################################
+
+mysql -u root --password='xxxx' -e "DROP DATABASE neutron;"
+mysql -u root --password='xxxx' -e "CREATE DATABASE neutron;"
+mysql -u root --password='xxxx' -e "GRANT ALL PRIVILEGES ON neutron.* TO 'neutron'@'localhost' IDENTIFIED BY 'xxxx';"
+mysql -u root --password='xxxx' -e "GRANT ALL PRIVILEGES ON neutron.* TO 'neutron'@'%' IDENTIFIED BY 'xxxx';"
+mysql -u root --password='xxxx' -e "flush privileges;"
+
+su -s /bin/sh -c "neutron-db-manage --config-file /etc/neutron/neutron.conf --config-file /etc/neutron/plugins/ml2/ml2_conf.ini upgrade head" neutron
+
+neutron-db-manage --subproject networking-odl upgrade head
+
+service neutron-server restart
+curl -u admin:admin http://10.0.0.12:8181/controller/nb/v2/neutron/networks (*** puerto 8080 o 8181 dependiendo de la versión del controlador ODL)
+
+
+service nova-api restart
+service nova-consoleauth restart
+service nova-scheduler restart
+service nova-conductor restart
+service nova-novncproxy restart
+
+
+- Create demo scenario:
+
+###############################################################################
+
+# Load admin credentials:
+source /root/bin/admin-openrc.sh
+
+# Create security group rules to allow ICMP, SSH and WWW access:
+openstack security group delete default
+openstack security group rule create --proto icmp --dst-port 0  default
+openstack security group rule create --proto tcp  --dst-port 80 default
+openstack security group rule create --proto tcp  --dst-port 22 default
+
+# Create internal networks:
+openstack network create net0
+openstack subnet create --network net0 --gateway 10.1.1.1 --dns-nameserver 8.8.8.8 --subnet-range 10.1.1.0/24 --allocation-pool start=10.1.1.8,end=10.1.1.100 subnet0
+
+sleep 5
+
+openstack network create net1
+openstack subnet create --network net1 --gateway 11.1.1.1 --dns-nameserver 8.8.8.8 --subnet-range 11.1.1.0/24 --allocation-pool start=11.1.1.8,end=11.1.1.100 subnet1
+
+sleep 5 
+
+# Create external network:
+openstack network create --share --external --provider-physical-network provider --provider-network-type flat ExtNet
+openstack subnet create --network ExtNet --gateway 10.0.10.1 --dns-nameserver 10.0.10.1 --subnet-range 10.0.10.0/24 --allocation-pool start=10.0.10.100,end=10.0.10.200 ExtSubNet
+
+sleep 5 
+
+# Create router:
+openstack router create r0
+openstack router add subnet r0 subnet0
+openstack router add subnet r0 subnet1
+openstack router set r0 --external-gateway ExtNet
+
+sleep 5 
+
+# Create virtual machines:
+mkdir -p /root/keys
+openstack keypair create vm1 > /root/keys/vm1
+openstack server create --flavor m1.tiny --image cirros-0.3.4-x86_64-vnx vm1 --nic net-id=net0 --key-name vm1
+openstack keypair create vm2 > /root/keys/vm2
+openstack server create --flavor m1.tiny --image cirros-0.3.4-x86_64-vnx vm2 --nic net-id=net1 --key-name vm2
+openstack keypair create vm3 > /root/keys/vm3
+openstack server create --flavor m1.smaller --image xenial-server-cloudimg-amd64-vnx vm3 --nic net-id=net0 --key-name vm3
+openstack keypair create vm4 > /root/keys/vm4
+openstack server create --flavor m1.smaller --image xenial-server-cloudimg-amd64-vnx vm4 --nic net-id=net1 --key-name vm4
+
+sleep 5 
+
+# Assign floating IP address to vm1, vm2, vm3 and vm4 openstack servers: 
+openstack server add floating ip vm1 $( openstack floating ip create ExtNet -c floating_ip_address -f value )
+openstack server add floating ip vm2 $( openstack floating ip create ExtNet -c floating_ip_address -f value )
+openstack server add floating ip vm3 $( openstack floating ip create ExtNet -c floating_ip_address -f value )
+openstack server add floating ip vm4 $( openstack floating ip create ExtNet -c floating_ip_address -f value )
+
+###############################################################################
+
+
+
+-> NETWORK NODE:
+
+slogin root@network
+pip install networking-odl (*)
+
+service neutron-openvswitch-agent stop
+systemctl disable neutron-openvswitch-agent
+service neutron-l3-agent stop
+systemctl disable neutron-l3-agent
+service neutron-lbaasv2-agent stop
+service neutron-dhcp-agent stop
+service neutron-metadata-agent stop
+
+service openvswitch-switch stop
+
+# borrar registros y logs OVS
+cd /etc/openvswitch/
+sudo rm conf.db .conf.db.~lock~
+cd /var/log/openvswitch/
+sudo rm ovs*
+
+service openvswitch-switch start
+ovs-vsctl show
+
+- networking-odl & neutron-odl-ovs-hostconfig:
+
+###############################################################################
+
+(1)
+
+sudo neutron-odl-ovs-hostconfig --noovs_dpdk --ovs_hostconfigs='{"ODL L2":{"allowed_network_types":["local","flat","vlan","vxlan","gre"],"bridge_mappings": {"provider":"eth4"},"supported_vnic_types": [{"vnic_type":"normal","vif_type":"ovs","vif_details":{}}]},"ODL L3": {}}'
+
+(2)
+
+cd /usr/local/lib/python2.7/dist-packages/networking_odl/cmd
+
+python set_ovs_hostconfigs.py --noovs_dpdk --ovs_hostconfigs='{"ODL L2":{"allowed_network_types":["local","flat","vlan","vxlan","gre"],"bridge_mappings": {"provider":"eth4"},"supported_vnic_types": [{"vnic_type":"normal","vif_type":"ovs","vif_details":{}}]},"ODL L3": {}}'
+
+python set_ovs_hostconfigs.py --noovs_dpdk
+
+(3)
+
+sudo neutron-odl-ovs-hostconfig --datapath_type=system --bridge_mappings={{provider_network:interface}}
+
+###############################################################################
+
+sudo ovs-vsctl set Open_vSwitch . other_config:local_ip=10.0.1.21
+sudo ovs-vsctl set Open_vSwitch . other_config:provider_mappings=provider:eth4
+ovs-vsctl set-manager ptcp:6640:127.0.0.1 tcp:10.0.0.12:6640
+
+ovs-vsctl set-manager ptcp:6640:127.0.0.1 tcp:10.0.0.12:6640
+
+
+sleep 1
+ovs-vsctl show
+
+
+-Configure /etc/neutron/dhcp_agent.ini file:
+
+###############################################################################
+
+interface_driver = openvswitch
+force_metadata = true
+
+[ovs]
+ovsdb_connection = tcp:10.0.0.21:6640
+#ovsdb_connection = tcp:127.0.0.1:6640
+
+###############################################################################
+
+service neutron-dhcp-agent restart
+service neutron-metadata-agent restart
+
+
+-> COMPUTE1 NODE:
+
+slogin root@compute1
+pip install networking-odl (*)
+service neutron-openvswitch-agent stop
+systemctl disable neutron-openvswitch-agent
+
+service openvswitch-switch stop
+
+# borrar registros y logs OVS
+cd /etc/openvswitch/
+sudo rm conf.db .conf.db.~lock~
+cd /var/log/openvswitch/
+sudo rm ovs*
+
+service openvswitch-switch start
+ovs-vsctl show
+
+- networking-odl & neutron-odl-ovs-hostconfig:
+
+###############################################################################
+
+(1)
+
+sudo neutron-odl-ovs-hostconfig --noovs_dpdk  --ovs_hostconfigs='{"ODL L2":{"allowed_network_types":["local","flat","vlan","vxlan","gre"],"bridge_mappings": {"provider":"eth4"},"supported_vnic_types": [{"vnic_type":"normal","vif_type":"ovs","vif_details":{}}]}}'
+
+(2)
+
+cd /usr/local/lib/python2.7/dist-packages/networking_odl/cmd
+
+python set_ovs_hostconfigs.py --noovs_dpdk --ovs_hostconfigs='{"ODL L2":{"allowed_network_types":["local","flat","vlan","vxlan","gre"],"bridge_mappings": {},"supported_vnic_types": [{"vnic_type":"normal","vif_type":"ovs","vif_details":{}}]}}'
+
+python set_ovs_hostconfigs.py --noovs_dpdk
+
+###############################################################################
+
+
+sudo ovs-vsctl set Open_vSwitch . other_config:local_ip=10.0.1.31
+sudo ovs-vsctl set Open_vSwitch . other_config:provider_mappings=provider:eth4
+ovs-vsctl set-manager ptcp:6640:127.0.0.1 tcp:10.0.0.12:6640
+
+sleep 1
+ovs-vsctl show
+
+- Configure /etc/nova/nova.conf file:
+
+###############################################################################
+
+[os_vif_ovs]
+ovsdb_connection = tcp:127.0.0.1:6640
+
+###############################################################################
+
+service nova-compute restart
+
+
+
+-> COMPUTE2 NODE:
+
+slogin root@compute2
+pip install networking-odl (*)
+service neutron-openvswitch-agent stop
+systemctl disable neutron-openvswitch-agent
+
+service openvswitch-switch stop
+
+# borrar registros y logs OVS
+cd /etc/openvswitch/
+sudo rm conf.db .conf.db.~lock~
+cd /var/log/openvswitch/
+sudo rm ovs*
+
+service openvswitch-switch start
+ovs-vsctl show
+
+- networking-odl & neutron-odl-ovs-hostconfig:
+
+###############################################################################
+
+(1)
+
+sudo neutron-odl-ovs-hostconfig --noovs_dpdk --ovs_hostconfigs='{"ODL L2":{"allowed_network_types":["local","flat","vlan","vxlan","gre"],"bridge_mappings": {},"supported_vnic_types": [{"vnic_type":"normal","vif_type":"ovs","vif_details":{}}]}}'
+
+(2)
+
+cd /usr/local/lib/python2.7/dist-packages/networking_odl/cmd
+
+python set_ovs_hostconfigs.py --noovs_dpdk --ovs_hostconfigs='{"ODL L2":{"allowed_network_types":["local","flat","vlan","vxlan","gre"],"bridge_mappings": {},"supported_vnic_types": [{"vnic_type":"normal","vif_type":"ovs","vif_details":{}}]}}'
+
+python set_ovs_hostconfigs.py --noovs_dpdk
+
+###############################################################################
+
+sudo ovs-vsctl set Open_vSwitch . other_config:local_ip=10.0.1.32
+sudo ovs-vsctl set Open_vSwitch . other_config:provider_mappings=provider:eth4
+ovs-vsctl set-manager ptcp:6640:127.0.0.1 tcp:10.0.0.12:6640
+
+sleep 1
+ovs-vsctl show
+
+- Configure /etc/nova/nova.conf file: 
+
+###############################################################################
+
+[os_vif_ovs]
+ovsdb_connection = tcp:127.0.0.1:6640
+
+###############################################################################
+
+service nova-compute restart
+
+
+
+-> pip install networking-odl (*):
+
+apt-get update
+apt-get install -y python-pip
+pip install networking-odl
+pip2 install networking-odl
+
+
+-> Opendaylight commands:
+
+- Listar features disponibles:
+
+feature:list
+
+- Listar features instaladas:
+
+feature:list -i
+
+- karaf logs: /karaf-0.8.4/data/log/...
+
+
+-> Other commands:
+
+# delete OVS records and logs
+cd /etc/openvswitch/
+sudo rm conf.db .conf.db.~lock~
+cd /var/log/openvswitch/
+sudo rm ovs*
+
+# neutron-server service logs
+cat /var/log/neutron/neutron-server.log
+
+# show VMs instances in compute nodes
+virsh list
+
+# load admin credentials
+source /root/bin/admin-openrc.sh
+
+# namespaces in network node
+$ ip netns
+qdhcp-08dfd7e6-8977-48d8-98da-290462445903 (id: 2)
+qdhcp-449a8227-0a0e-434c-8c51-a22048428dfc (id: 1)
+
+# check if the DHCP requests are reaching the qdhcp agent using the following commands on the OpenStack controller:
+
+$ ip netns exec qdhcp-xxxx ifconfig -a
+
+$ ip netns exec qdhcp-xxxx ping a.b.c.d
+
+$ ip netns exec qdhcp-xxxx tcpdump -nei tapxxxx
+
+# tcpdump
+tcpdump -i eth2 -e
+
+# Check all options for Open_vSwitch
+ovs-vsctl list Open_vSwitch
+
+# OpenFlow rules in a OVS bridge
+ovs-dpctl dump-flows
+ovs-ofctl --protocol=OpenFlow13 dump-flows br-int
+
+# set controller of bridge
+sudo ovs-vsctl set-controller br-provider tcp:10.0.0.12:6653
+
+# the mapping between the OpenFlow port number and the linux interface:
+ovs-ofctl dump-ports-desc br-int -O OpenFlow13
+
+# to execute a flow dump of br-int, and search for the flows that are relevant to the VM’s floating IP address:
+ovs-ofctl -O OpenFlow13 dump-flows br-int | grep "<floating_ip>"
+
+# configure bridge br-int to send NetFlow records to UDP port 2055 on host 10.0.0.12 (ODL Controller with tsdr-netflow-statistics-collector configure) like NetFlow probe, keeping the OpenFlow port numbers as iface numbers:
+
+sudo ovs-vsctl -- set Bridge br-int netflow=@nf -- --id=@nf create NetFlow targets=\"10.0.0.12:2055\" active-timeout=60
+
+# change only one feature of NetFlow probe in OVS
+ovs−vsctl set NetFlow br-int active_timeout=60
+
+# Clear NetFlow configuration of OVS
+sudo ovs-vsctl clear Bridge br-int netflow
+
+# List NetFlow configuration of OVS
+sudo ovs-vsctl list NetFlow
+
+# configure sflow in OVS bridge
+
+sudo ovs-vsctl -- --id=@sflow create sflow agent=eth1 target=\"10.0.0.12:6343\" sampling=10 polling=20 -- -- set bridge br-int sflow=@sflow
+
+sudo ovs-vsctl -- --id=@sflow create sflow target=\"10.0.0.12:6343\" sampling=10 polling=20 -- -- set bridge br-int sflow=@sflow
+
+
+# API REST queries of OpenDayLight TSDR metrics
+curl -G -v -H "Accept: application/json" -H "Authorization: Basic YWRtaW46YWRtaW4=" "http://10.20.0.18:8181/tsdr/metrics/query" --data-urlencode "tsdrkey=[NID=][DC=FLOWSTATS][RK=]" --data-urlencode "from=-30min" --data-urlencode "until=now" --data-urlencode "maxDataPoints=5" --data-urlencode "aggregation=MEAN" > aggregationTest
+
+curl -G -v -H "Accept: application/json" -H "Content-Type: application/json" "http://10.20.0.18:8181/tsdr/metrics/query" --data-urlencode "tsdrkey=[NID=][DC=FLOWSTATS][MN=][RK=]" --data-urlencode "from=-0" --data-urlencode "until=now" | more
+
+# Pulling the docker ElasticSearch image
+sudo docker pull docker.elastic.co/elasticsearch/elasticsearch:6.4.3
+
+# Running Elasticsearch from the command line in "development mode"
+docker run -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" docker.elastic.co/elasticsearch/elasticsearch:6.4.3
+
+# Query the ElasticSearch instance:
+curl -X POST "http://127.0.0.1:9200/_search?pretty" -d '{ "from": 0, "size": 10000, "query": { "match_all": {} } }'
+
+curl -H "Accept: application/json" -H "Content-Type: application/json" -X POST "http://138.4.7.173:9200/_search?pretty" -d '{ "from": 0, "size": 10000, "query": { "match_all": {} } }'
+
+curl -X POST "http://127.0.0.1:9200/_search?pretty"
+
+
+#### OPENSTACK COMMANDS  ####
+
+# show servers, networks, subnets, routers, services...
+
+openstack server list
+openstack network list
+openstack subnet list
+openstack router list
+openstack service list
+openstack catalag list
+
+# show neutron agent services
+openstack network agent list
+openstack network agent show <id_agent>
+
+# show compute services
+openstack compute service list
+
+# router port list and state
+openstack port list --router r0
+
+# delete instance vm 
+openstack server delete <vm_id or vm_name>
+
+# remove router subnet
+openstack router remove subnet <router_name> <subnet_id>
+
+# remove router  port
+openstack router remove port <router_name> <port_id>
+
+# delete router 
+openstack router delete <router_name>
+
+# delete subnet
+openstack subnet delete <subnet_id or subnet_name>
+
+# delete net
+openstack network delete <net_id or net_id>
+
+# delete floating ip
+openstack floating ip delete <floating_ip_id>
+
+
+
