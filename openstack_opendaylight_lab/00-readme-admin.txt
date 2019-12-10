@@ -1,6 +1,6 @@
 
 
-Recipe to create and pack the scenario from scratch (Ago-2019)
+Recipe to create and pack the scenario from scratch (Dec-2019)
 --------------------------------------------------------------
   
 - Create the original rootfs:
@@ -10,6 +10,11 @@ cd filesystems
 ./create_rootfs_lxc_ubuntu64-18.04-ostack-network 
 ./create_rootfs_lxc_ubuntu64-18.04-ostack-compute 
 ./create_rootfs_lxc_ubuntu64-18.04-ostack-opendaylight 
+  
+                          or
+ 
+ cd filesystems
+ ./create.sh
 
 - Set the scenario to use the original filesystem:
 
@@ -81,4 +86,18 @@ service nova-scheduler status
 service neutron-server status
 service apache2 status
 
++ Network:
 
+service neutron-dhcp-agent status
+service neutron-metadata-agent status
+service openvswitch-switch status
+
+  + Computes:
+
+service nova-compute status
+service openvswitch-switch status
+ 
+  + OpenDayLight:
+
+cd karaf-0.8.4
+./bin/status
