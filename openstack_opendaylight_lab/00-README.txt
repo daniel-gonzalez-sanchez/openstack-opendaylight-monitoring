@@ -11,7 +11,7 @@ B) Construir los root filesystems manualmente haciendo uso de los scripts del di
 2 - Despliegue de escenario VNX openstack_opendaylight_lab
 
 # Start the scenario
-vnx -f openstack_opendaylight_lab.xml -v -t or vnx -f openstack_lab-odl.xml -v --create
+vnx -f openstack_opendaylight_lab.xml -v -t or vnx -f openstack_opendaylight_lab.xml -v --create
 
 # Wait for all consoles to have started and configure all Openstack services (start-all)
 # Load vm images in GLANCE (load-img)
