@@ -25,9 +25,9 @@ cd ..
 
 - Start the scenario and execute steps 1-6 and 8
 
-vnx -f openstack_lab.xml -v -t  # wait till you see the controller login
-vnx -f openstack_lab.xml -v -x step1-6,step8
-vnx -f openstack_lab.xml -v --shutdown
+vnx -f openstack_opendaylight_lab.xml -v -t  # wait till you see the controller login
+vnx -f openstack_opendaylight_lab.xml -v -x step1-6,step8
+vnx -f openstack_opendaylight_lab.xml -v --shutdown
 # wait for all VMs to stop (all consoles closed)
 
 - Consolidate the changes made to the controller in a new rootfs:
@@ -35,7 +35,7 @@ vnx -f openstack_lab.xml -v --shutdown
 cd filesystems
 ./create_rootfs_lxc_ubuntu64-18.04-ostack-controller-cfgd 
 cd ..
-vnx -f openstack_lab.xml -v -P
+vnx -f openstack_opendaylight_lab.xml -v -P
 
 - Pack the scenario with:
 
