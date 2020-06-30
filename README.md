@@ -6,4 +6,4 @@ Desarrollo de una solución que permite la integración de redes SDN basadas en 
 ![Alt text](https://github.com/daniel-gonzalez-sanchez/openstack-opendaylight-monitoring/blob/master/images/OS%2BODL.jpg)
 
 ## Esquema general de OpenPoll Tool:
-![Alt text]()
+![Alt text](https://github.com/daniel-gonzalez-sanchez/openstack-opendaylight-monitoring/blob/master/images/OpenPoll.jpg)
